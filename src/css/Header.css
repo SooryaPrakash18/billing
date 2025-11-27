@@ -19,4 +19,7 @@
   .header {
     padding: 1rem;
   }
+  .header-content{
+    padding-inline-start: 50px;
+  }
 }
