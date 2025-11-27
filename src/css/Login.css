@@ -23,7 +23,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('D:/Work/bills/client/public/Black.png');
+
   background-size: 40%;
   background-position: left 10% center;
   background-repeat: no-repeat;
@@ -548,4 +548,5 @@
     font-size: 0.8rem;
     padding: 0.625rem 1rem;
   }
+
 }
