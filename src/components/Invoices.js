@@ -829,81 +829,172 @@ const Invoices = () => {
               </div>
 
               {/* Items Table */}
-              <div className="section">
-                <h5>Items</h5>
-                <div className="items-table">
-                  <div className="table-header">
-                    <span>Description</span><span>HSN/SAC</span><span>Qty</span><span>Rate</span><span>Disc %</span><span>Amount</span><span></span>
-                  </div>
-                  {formData.items.map((item, i) => (
-                    <div key={i} className="table-row">
-                      <input
-                        type="text"
-                        value={item.item}
-                        onChange={e => handleItemChange(i, 'item', e.target.value)}
-                        placeholder="e.g. APC Home UPS 1000VA"
-                      />
-                      <input type="text" value={item.itemCode} onChange={e => handleItemChange(i, 'itemCode', e.target.value)} placeholder="8504" />
-                      <input type="number" value={item.qty} onChange={e => handleItemChange(i, 'qty', e.target.value)} min="1" />
-                      <input type="number" value={item.price} onChange={e => handleItemChange(i, 'price', e.target.value)} step="0.01" />
-                      <input type="number" value={item.disc} onChange={e => handleItemChange(i, 'disc', e.target.value)} min="0" max="100" />
-                      <span className="amount">₹{parseFloat(item.amount || 0).toFixed(2)}</span>
-                      <button type="button" className="btn-delete" onClick={() => removeItem(i)}>×</button>
-                    </div>
-                  ))}
-                  <button type="button" className="btn-add-item" onClick={addItem}>+ Add Item</button>
-                </div>
-              </div>
+       
 
-              {/* Tax & Total */}
-              <div className="section tax-total">
-                <div className="tax-grid">
-                  <label>Taxable Amount</label>
-                  <input type="number" step="0.01" value={formData.taxable.toFixed(2)} readOnly className="readonly" />
-                  
-                  <label>CGST  %</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.cgstRate} 
-                    onChange={e => handleCgstRateChange(e.target.value)}
-                    min="0"
-                    max="28"
-                  />
-                  
-                  <label>CGST Amount</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.cgst.toFixed(2)} 
-                    readOnly 
-                    className="readonly"
-                  />
-                  
-                  <label>SGST  %</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.sgstRate} 
-                    onChange={e => handleSgstRateChange(e.target.value)}
-                    min="0"
-                    max="28"
-                  />
-                  
-                  <label>SGST Amount</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.sgst.toFixed(2)} 
-                    readOnly 
-                    className="readonly"
-                  />
-                </div>
-                <div className="final-total">
-                  <strong>Total: ₹{total.toFixed(2)}</strong>
-                  <p className="in-words">In Words: {numberToWords(Math.round(total))}</p>
-                </div>
-              </div>
+{/* Items Table */}
+<div className="section items-section">
+  <h5>Items</h5>
+  <div className="items-table">
+    {/* Desktop Header */}
+    <div className="items-table-header">
+      <div className="items-table-header-row">
+        <div className="table-header-cell">Description</div>
+        <div className="table-header-cell">HSN/SAC</div>
+        <div className="table-header-cell">Qty</div>
+        <div className="table-header-cell">Rate</div>
+        <div className="table-header-cell">Disc %</div>
+        <div className="table-header-cell">Amount</div>
+        <div className="table-header-cell"></div>
+      </div>
+    </div>
+    
+    {/* Items Body */}
+    <div className="items-table-body">
+      {formData.items.map((item, i) => (
+        <div key={i} className="table-row">
+          {/* Description */}
+          <div className="table-cell" data-label="Description">
+            <input
+              type="text"
+              className="item-input"
+              value={item.item}
+              onChange={e => handleItemChange(i, 'item', e.target.value)}
+              placeholder="e.g. APC Home UPS 1000VA"
+            />
+          </div>
+          
+          {/* HSN/SAC */}
+          <div className="table-cell" data-label="HSN/SAC">
+            <input 
+              type="text" 
+              className="item-input"
+              value={item.itemCode} 
+              onChange={e => handleItemChange(i, 'itemCode', e.target.value)} 
+              placeholder="8504" 
+            />
+          </div>
+          
+          {/* Quantity */}
+          <div className="table-cell" data-label="Qty">
+            <input 
+              type="number" 
+              className="item-input"
+              value={item.qty} 
+              onChange={e => handleItemChange(i, 'qty', e.target.value)} 
+              min="1" 
+            />
+          </div>
+          
+          {/* Rate */}
+          <div className="table-cell" data-label="Rate">
+            <input 
+              type="number" 
+              className="item-input"
+              value={item.price} 
+              onChange={e => handleItemChange(i, 'price', e.target.value)} 
+              step="0.01" 
+            />
+          </div>
+          
+          {/* Discount */}
+          <div className="table-cell" data-label="Disc %">
+            <input 
+              type="number" 
+              className="item-input"
+              value={item.disc} 
+              onChange={e => handleItemChange(i, 'disc', e.target.value)} 
+              min="0" 
+              max="100" 
+            />
+          </div>
+          
+          {/* Amount */}
+          <div className="table-cell amount-cell" data-label="Amount">
+            ₹{parseFloat(item.amount || 0).toFixed(2)}
+          </div>
+          
+          {/* Delete Button */}
+          <div className="table-cell">
+            <button type="button" className="btn-delete" onClick={() => removeItem(i)}>
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+    
+    <button type="button" className="btn-add-item" onClick={addItem}>
+      <span>+</span> Add Item
+    </button>
+  </div>
+</div>
+
+<div className="section tax-total-section">
+  <h5>Tax & Total</h5>
+  <div className="tax-grid">
+    <div className="form-group">
+      <label>Taxable Amount</label>
+      <input 
+        type="number" 
+        step="0.01" 
+        value={formData.taxable.toFixed(2)} 
+        readOnly 
+        className="readonly" 
+      />
+    </div>
+    
+    <div className="form-group">
+      <label>CGST %</label>
+      <input 
+        type="number" 
+        step="0.01" 
+        value={formData.cgstRate} 
+        onChange={e => handleCgstRateChange(e.target.value)}
+        min="0"
+        max="28"
+      />
+    </div>
+    
+    <div className="form-group">
+      <label>CGST Amount</label>
+      <input 
+        type="number" 
+        step="0.01" 
+        value={formData.cgst.toFixed(2)} 
+        readOnly 
+        className="readonly"
+      />
+    </div>
+    
+    <div className="form-group">
+      <label>SGST %</label>
+      <input 
+        type="number" 
+        step="0.01" 
+        value={formData.sgstRate} 
+        onChange={e => handleSgstRateChange(e.target.value)}
+        min="0"
+        max="28"
+      />
+    </div>
+    
+    <div className="form-group">
+      <label>SGST Amount</label>
+      <input 
+        type="number" 
+        step="0.01" 
+        value={formData.sgst.toFixed(2)} 
+        readOnly 
+        className="readonly"
+      />
+    </div>
+  </div>
+  
+  <div className="final-total">
+    <strong>Total: ₹{total.toFixed(2)}</strong>
+    <p className="in-words">In Words: {numberToWords(Math.round(total))}</p>
+  </div>
+</div>
 
               {/* Payment Mode */}
               <div className="section payment-mode">
