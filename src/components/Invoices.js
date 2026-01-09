@@ -84,7 +84,7 @@ const pdfStyles = StyleSheet.create({
     textAlign: 'center', 
     borderRightWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
     fontSize: 8
   },
   customerText: {
@@ -158,6 +158,32 @@ const pdfStyles = StyleSheet.create({
     fontSize: 7,
     marginBottom: 3,
     lineHeight: 1.2
+  },
+  signatureContainer: {
+    width: '45%',
+    alignItems: 'flex-end'
+  },
+  signatureBox: {
+    height: 155,
+    width: 190,
+    marginBottom: 8,
+    position: 'relative'
+  },
+  signatureImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain'
+  },
+  signatureText: {
+    fontSize: 9,
+    marginBottom: 3,
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+  signatureSubText: {
+    fontSize: 8,
+    color: '#555',
+    textAlign: 'center'
   }
 });
 
@@ -166,32 +192,65 @@ const numberToWords = (num) => {
   const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
   const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const tens = ['', 'Ten', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const thousands = ['', 'Thousand', 'Million', 'Billion'];
+  const thousands = ['', 'Thousand', 'Lakh', 'Crore'];
 
   if (num === 0) return 'Zero';
 
-  let word = '';
-  let i = 0;
-  while (num > 0) {
-    const chunk = num % 1000;
-    if (chunk) {
-      let chunkWord = '';
-      const hundreds = Math.floor(chunk / 100);
-      const tensAndUnits = chunk % 100;
-      if (hundreds) chunkWord += units[hundreds] + ' Hundred ';
-      if (tensAndUnits >= 10 && tensAndUnits < 20) {
-        chunkWord += teens[tensAndUnits - 10] + ' ';
-      } else if (tensAndUnits >= 20) {
-        chunkWord += tens[Math.floor(tensAndUnits / 10)] + ' ' + units[tensAndUnits % 10] + ' ';
-      } else if (tensAndUnits > 0) {
-        chunkWord += units[tensAndUnits] + ' ';
-      }
-      word = chunkWord + thousands[i] + ' ' + word;
+  const convertLessThanThousand = (n) => {
+    if (n === 0) return '';
+    if (n < 10) return units[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) {
+      const ten = Math.floor(n / 10);
+      const unit = n % 10;
+      return tens[ten] + (unit ? ' ' + units[unit] : '');
     }
-    num = Math.floor(num / 1000);
-    i++;
+    const hundred = Math.floor(n / 100);
+    const remainder = n % 100;
+    return units[hundred] + ' Hundred' + (remainder ? ' and ' + convertLessThanThousand(remainder) : '');
+  };
+
+  const convertIndianNumber = (n) => {
+    if (n === 0) return '';
+    
+    let crore = Math.floor(n / 10000000);
+    let lakh = Math.floor((n % 10000000) / 100000);
+    let thousand = Math.floor((n % 100000) / 1000);
+    let hundred = n % 1000;
+    
+    let parts = [];
+    
+    if (crore > 0) {
+      parts.push(convertLessThanThousand(crore) + ' Crore');
+    }
+    if (lakh > 0) {
+      parts.push(convertLessThanThousand(lakh) + ' Lakh');
+    }
+    if (thousand > 0) {
+      parts.push(convertLessThanThousand(thousand) + ' Thousand');
+    }
+    if (hundred > 0) {
+      parts.push(convertLessThanThousand(hundred));
+    }
+    
+    return parts.join(' ');
+  };
+
+  const rupees = Math.floor(num);
+  const paise = Math.round((num - rupees) * 100);
+  
+  let result = '';
+  
+  if (rupees > 0) {
+    result = convertIndianNumber(rupees) + ' Rupees';
   }
-  return word.trim() + ' Only';
+  
+  if (paise > 0) {
+    if (result) result += ' and ';
+    result += convertIndianNumber(paise) + ' Paise';
+  }
+  
+  return result ? result + ' Only' : 'Zero Rupees Only';
 };
 
 // PDF Invoice Component
@@ -210,18 +269,24 @@ const PDFInvoice = ({ formData, invoiceNumber, total }) => {
     if (!acc[hsn]) {
       acc[hsn] = { 
         taxable: 0, 
-        cgstRate: formData.cgstRate || 0, 
-        sgstRate: formData.sgstRate || 0, 
+        cgstRate: parseFloat(formData.cgstRate) || 0, 
+        sgstRate: parseFloat(formData.sgstRate) || 0, 
         cgstAmt: 0, 
         sgstAmt: 0 
       };
     }
+    
+    const cgstRate = parseFloat(formData.cgstRate) || 0;
+    const sgstRate = parseFloat(formData.sgstRate) || 0;
+    
     acc[hsn].taxable += taxable;
-    acc[hsn].cgstAmt += (taxable * (formData.cgstRate || 0)) / 100;
-    acc[hsn].sgstAmt += (taxable * (formData.sgstRate || 0)) / 100;
+    acc[hsn].cgstAmt += (taxable * cgstRate) / 100;
+    acc[hsn].sgstAmt += (taxable * sgstRate) / 100;
 
     return acc;
   }, {});
+
+  const invoiceDate = formData.invoiceDate ? new Date(formData.invoiceDate) : new Date();
 
   return (
     <Document>
@@ -233,14 +298,14 @@ const PDFInvoice = ({ formData, invoiceNumber, total }) => {
               style={pdfStyles.logo} 
               src="/logo.png" 
             />
-            <Text style={pdfStyles.companyName}>E I O Digital Solutions Pvt</Text>
+            <Text style={pdfStyles.companyName}>E I O Digital Solutions Pvt Ltd</Text>
           </View>
           <View style={pdfStyles.companyInfo}>
             <Text style={pdfStyles.companyNameMain}>E I O Digital Solutions Private Limited</Text>
-            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.address}</Text>
-            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.contact}</Text>
-            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.email}</Text>
-            <Text style={pdfStyles.companyDetails}>GSTIN:  {formData.companyInfo?.gstin}</Text>
+            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.address || 'Address not provided'}</Text>
+            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.contact || 'Contact not provided'}</Text>
+            <Text style={pdfStyles.companyDetails}>{formData.companyInfo?.email || 'Email not provided'}</Text>
+            <Text style={pdfStyles.companyDetails}>GSTIN: {formData.companyInfo?.gstin || 'GSTIN not provided'}</Text>
           </View>
         </View>
 
@@ -251,36 +316,36 @@ const PDFInvoice = ({ formData, invoiceNumber, total }) => {
         {/* Invoice Details Table */}
         <View style={[pdfStyles.table, {marginBottom: 10}]}>
           <View style={pdfStyles.tableRow}>
-            <Text style={[pdfStyles.tableColHeader, {width: '25%'}]}>Invoice No</Text>
-            <Text style={[pdfStyles.tableColHeader, {width: '25%'}]}>Date</Text>
-            <Text style={[pdfStyles.tableColHeader, {width: '25%'}]}>PO No</Text>
-            <Text style={[pdfStyles.tableColHeader, {width: '25%'}]}>Mode of Transport</Text>
-                       <Text style={[pdfStyles.tableColHeader, {width: '25%'}]}>Mode Of Payment</Text>
-
+            <Text style={[pdfStyles.tableColHeader, {width: '20%'}]}>Invoice No</Text>
+            <Text style={[pdfStyles.tableColHeader, {width: '20%'}]}>Date</Text>
+            <Text style={[pdfStyles.tableColHeader, {width: '20%'}]}>PO No</Text>
+            <Text style={[pdfStyles.tableColHeader, {width: '20%'}]}>Mode of Delivery</Text>
+            <Text style={[pdfStyles.tableColHeader, {width: '20%'}]}>Mode Of Payment</Text>
           </View>
           <View style={pdfStyles.tableRow}>
-            <Text style={[pdfStyles.tableCol, {width: '25%'}]}>{invoiceNumber}</Text>
-            <Text style={[pdfStyles.tableCol, {width: '25%'}]}>{new Date(formData.invoiceDate).toLocaleDateString('en-IN')}</Text>
-            <Text style={[pdfStyles.tableCol, {width: '25%'}]}>{formData.poNo || '-'}</Text>
-            <Text style={[pdfStyles.tableCol, {width: '25%'}]}>{formData.modeOfTransport || '-'}</Text>
-                <Text style={[pdfStyles.tableCol, {width: '25%'}]}>{formData.paymentMode || '-'}</Text>
+            <Text style={[pdfStyles.tableCol, {width: '20%'}]}>{invoiceNumber}</Text>
+            <Text style={[pdfStyles.tableCol, {width: '20%'}]}>
+              {invoiceDate.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              })}
+            </Text>
+            <Text style={[pdfStyles.tableCol, {width: '20%'}]}>{formData.poNo || '-'}</Text>
+            <Text style={[pdfStyles.tableCol, {width: '20%'}]}>{formData.modeOfTransport || '-'}</Text>
+            <Text style={[pdfStyles.tableCol, {width: '20%'}]}>{formData.paymentMode || '-'}</Text>
           </View>
         </View>
 
-        {/* Bill To / Ship To Table */}
+        {/* Bill To Table */}
         <View style={[pdfStyles.table, {marginBottom: 10}]}>
           <View style={pdfStyles.tableRow}>
-            <Text style={[pdfStyles.tableColHeader, {width: '50%'}]}>Bill To:</Text>
-            <Text style={[pdfStyles.tableColHeader, {width: '50%'}]}>Ship To:</Text>
+            <Text style={[pdfStyles.tableColHeader, {width: '100%'}]}>Bill To:</Text>
           </View>
           <View style={pdfStyles.tableRow}>
-            <View style={[pdfStyles.tableCol, {width: '50%', padding: 6}]}>
-              <Text style={pdfStyles.customerText}>{formData.billTo}</Text>
+            <View style={[pdfStyles.tableCol, {width: '100%', padding: 6}]}>
+              <Text style={pdfStyles.customerText}>{formData.billTo || 'Not provided'}</Text>
               <Text style={pdfStyles.gstinText}>GSTIN: {formData.billToGSTIN || 'N/A'}</Text>
-            </View>
-            <View style={[pdfStyles.tableCol, {width: '50%', padding: 6}]}>
-              <Text style={pdfStyles.customerText}>{formData.shipTo || formData.billTo}</Text>
-              <Text style={pdfStyles.gstinText}>GSTIN: {formData.shipToGSTIN || formData.billToGSTIN || 'N/A'}</Text>
             </View>
           </View>
         </View>
@@ -307,7 +372,9 @@ const PDFInvoice = ({ formData, invoiceNumber, total }) => {
             return (
               <View key={index} style={pdfStyles.tableRow}>
                 <Text style={[pdfStyles.tableCol, {width: '8%'}]}>{index + 1}</Text>
-                <Text style={[pdfStyles.tableCol, {width: '32%', textAlign: 'left', paddingLeft: 6}]}>{item.item}</Text>
+                <Text style={[pdfStyles.tableCol, {width: '32%', textAlign: 'left', paddingLeft: 6}]}>
+                  {item.item || 'No description'}
+                </Text>
                 <Text style={[pdfStyles.tableCol, {width: '12%'}]}>{item.itemCode || '-'}</Text>
                 <Text style={[pdfStyles.tableCol, {width: '10%'}]}>{qty}</Text>
                 <Text style={[pdfStyles.tableCol, {width: '12%'}]}>{price.toFixed(2)}</Text>
@@ -338,23 +405,28 @@ const PDFInvoice = ({ formData, invoiceNumber, total }) => {
               <Text style={pdfStyles.totalLabel}>Round Off:</Text>
               <Text style={pdfStyles.totalValue}>₹{parseFloat(formData.roundOff || 0).toFixed(2)}</Text>
             </View>
-            <View style={[pdfStyles.totalRow, {borderTop: '1px solid #333', paddingTop: 4, marginTop: 4}]}>
+            <View style={[pdfStyles.totalRow, {borderTopWidth: 1, borderTopColor: '#333', paddingTop: 4, marginTop: 4}]}>
               <Text style={pdfStyles.grandTotalLabel}>Grand Total:</Text>
               <Text style={pdfStyles.grandTotalValue}>₹{total.toFixed(2)}</Text>
             </View>
             <Text style={pdfStyles.inWords}>
-              Amount in Words: {numberToWords(Math.round(total))}
+              Amount in Words: {numberToWords(total)}
             </Text>
           </View>
 
-          {/* Right: Authorized Signatory */}
-          <View style={{ width: '45%', alignItems: 'flex-end' }}>
+          {/* Right: Authorized Signatory with Image */}
+          <View style={pdfStyles.signatureContainer}>
             <Text style={{ marginBottom: 35, fontSize: 9 }}>
-              For <Text style={{ fontWeight: 'bold' }}>{formData.billTo.split('\n')[0] || 'Customer'}</Text>
+              For E I O Digital Solutions Pvt Ltd
             </Text>
-            <View style={{ height: 55, width: 190, border: '1px dashed #999', marginBottom: 8 }} />
-            <Text style={{ fontSize: 9, marginBottom: 3, fontWeight: 'bold' }}>Authorized Signatory</Text>
-            <Text style={{ fontSize: 8, color: '#555' }}>(Company Seal & Signature)</Text>
+            <View style={pdfStyles.signatureBox}>
+              <Image 
+                style={pdfStyles.signatureImage} 
+                src="/bills.png" 
+              />
+            </View>
+            <Text style={pdfStyles.signatureText}>Authorized Signatory</Text>
+            <Text style={pdfStyles.signatureSubText}>(Company Seal & Signature)</Text>
           </View>
         </View>
 
@@ -426,26 +498,36 @@ const Invoices = () => {
   const [companySettings, setCompanySettings] = useState({});
 
   const initialForm = {
-    companyInfo: { address: '', contact: '', logo: '', gstin: '', bankDetails: '' },
-    billTo: '', billToGSTIN: '',
-    shipTo: '', shipToGSTIN: '',
+    companyInfo: { 
+      address: '', 
+      contact: '', 
+      logo: '', 
+      gstin: '', 
+      bankDetails: '',
+      email: ''
+    },
+    billTo: '', 
+    billToGSTIN: '',
+    shipTo: '', 
+    shipToGSTIN: '',
     poNo: '',
     modeOfTransport: '',
-    invoiceDate: new Date().toISOString().substr(0, 10),
+    invoiceDate: new Date().toISOString().split('T')[0],
     items: [{ item: '', itemCode: '', qty: 1, price: 0, disc: 0, amount: 0 }],
     paymentMode: 'Cash',
     taxable: 0,
-    cgstRate: 0, // Default CGST rate
-    sgstRate: 0, // Default SGST rate
+    cgstRate: 0,
+    sgstRate: 0,
     cgst: 0, 
     sgst: 0, 
-    roundOff: 0
+    roundOff: 0,
+    totalAmount: 0
   };
 
   const [formData, setFormData] = useState(initialForm);
 
   // Transport options
-  const transportOptions = ['Air', 'Ship', 'Roadways', 'Railways'];
+  const transportOptions = ['Air', 'Ship', 'Roadways', 'Railways', 'Email'];
 
   // Fetch invoices and settings
   useEffect(() => {
@@ -456,7 +538,7 @@ const Invoices = () => {
   const fetchInvoices = async () => {
     try {
       const res = await axios.get('https://billing-ki8l.onrender.com/api/invoices');
-      const sorted = res.data.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+      const sorted = res.data.sort((a, b) => new Date(b.invoiceDate || b.createdAt) - new Date(a.invoiceDate || a.createdAt));
       setInvoices(sorted);
     } catch (err) {
       showAlert('error', 'Failed to load invoices');
@@ -484,7 +566,9 @@ const Invoices = () => {
       return num;
     } catch (err) {
       showAlert('error', 'Failed to generate invoice number');
-      return 'INV-0001';
+      const fallbackNum = `INV-${String(invoices.length + 1).padStart(4, '0')}`;
+      setInvoiceNumber(fallbackNum);
+      return fallbackNum;
     }
   };
 
@@ -523,7 +607,8 @@ const Invoices = () => {
     const discount = subtotal * (disc / 100);
     items[index].amount = subtotal - discount;
 
-    setFormData({ ...formData, items });
+    const updatedFormData = { ...formData, items };
+    setFormData(updatedFormData);
     recalculateTotals(items);
   };
 
@@ -567,26 +652,27 @@ const Invoices = () => {
   const handleCgstRateChange = (value) => {
     const cgstRate = parseFloat(value) || 0;
     setFormData(prev => ({ ...prev, cgstRate }));
-    recalculateTotals(formData.items);
+    setTimeout(() => recalculateTotals(formData.items), 0);
   };
 
   // Handle SGST rate change
   const handleSgstRateChange = (value) => {
     const sgstRate = parseFloat(value) || 0;
     setFormData(prev => ({ ...prev, sgstRate }));
-    recalculateTotals(formData.items);
+    setTimeout(() => recalculateTotals(formData.items), 0);
   };
 
   const addItem = () => {
-    setFormData({
-      ...formData,
-      items: [...formData.items, { item: '', itemCode: '', qty: 1, price: 0, disc: 0, amount: 0 }]
-    });
+    const newItem = { item: '', itemCode: '', qty: 1, price: 0, disc: 0, amount: 0 };
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, newItem]
+    }));
   };
 
   const removeItem = (index) => {
     const items = formData.items.filter((_, i) => i !== index);
-    setFormData({ ...formData, items });
+    setFormData(prev => ({ ...prev, items }));
     recalculateTotals(items);
   };
 
@@ -639,26 +725,22 @@ const Invoices = () => {
 
   const openEdit = (invoice) => {
     setFormData({
-      companyInfo: invoice.companyInfo || { address: '', contact: '', logo: '', gstin: '', bankDetails: '' },
-      billTo: invoice.billTo || '',
-      billToGSTIN: invoice.billToGSTIN || '',
-      shipTo: invoice.shipTo || '',
-      shipToGSTIN: invoice.shipToGSTIN || '',
-      poNo: invoice.poNo || '',
-      modeOfTransport: invoice.modeOfTransport || '',
-      invoiceDate: invoice.invoiceDate ? new Date(invoice.invoiceDate).toISOString().substr(0, 10) : new Date().toISOString().substr(0, 10),
-      items: (invoice.items || []).map(i => ({
-        item: i.item || '',
-        itemCode: i.itemCode || '',
+      ...initialForm,
+      ...invoice,
+      companyInfo: invoice.companyInfo || initialForm.companyInfo,
+      invoiceDate: invoice.invoiceDate ? 
+        new Date(invoice.invoiceDate).toISOString().split('T')[0] : 
+        initialForm.invoiceDate,
+      items: (invoice.items || initialForm.items).map(i => ({
+        ...i,
         qty: parseFloat(i.qty) || 0,
         price: parseFloat(i.price) || 0,
         disc: parseFloat(i.disc) || 0,
         amount: parseFloat(i.amount) || 0
       })),
-      paymentMode: invoice.paymentMode || 'Cash',
       taxable: parseFloat(invoice.taxable) || 0,
-      cgstRate: parseFloat(invoice.cgstRate) || 9,
-      sgstRate: parseFloat(invoice.sgstRate) || 9,
+      cgstRate: parseFloat(invoice.cgstRate) || 0,
+      sgstRate: parseFloat(invoice.sgstRate) || 0,
       cgst: parseFloat(invoice.cgst) || 0,
       sgst: parseFloat(invoice.sgst) || 0,
       roundOff: parseFloat(invoice.roundOff) || 0
@@ -682,18 +764,25 @@ const Invoices = () => {
   };
 
   const downloadExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(formData.items.map((item, index) => ({
-      'Sr No': index + 1,
-      Description: item.item,
-      'HSN/SAC': item.itemCode,
-      Qty: item.qty,
-      Rate: item.price,
-      'Disc %': item.disc,
-      Amount: item.amount
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
-    XLSX.writeFile(wb, `Invoice_${invoiceNumber || 'INV-0000'}.xlsx`);
+    try {
+      const ws = XLSX.utils.json_to_sheet(formData.items.map((item, index) => ({
+        'Sr No': index + 1,
+        'Description': item.item,
+        'HSN/SAC': item.itemCode,
+        'Qty': item.qty,
+        'Rate': item.price,
+        'Disc %': item.disc,
+        'Amount': item.amount
+      })));
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
+      XLSX.writeFile(wb, `Invoice_${invoiceNumber || 'Draft'}.xlsx`);
+      showAlert('success', 'Excel file downloaded successfully!');
+    } catch (err) {
+      console.error('Excel download error:', err);
+      showAlert('error', 'Failed to download Excel file');
+    }
   };
 
   // Auto-fill company info when creating new invoice
@@ -706,12 +795,20 @@ const Invoices = () => {
           contact: companySettings.contact || '',
           logo: companySettings.logo || '/logo.png',
           gstin: companySettings.gstin || '',
-          bankDetails: companySettings.bankDetails || ''
+          bankDetails: companySettings.bankDetails || '',
+          email: companySettings.email || ''
         }
       }));
       setLogoPreview(companySettings.logo || '/logo.png');
     }
   }, [showForm, editingId, companySettings]);
+
+  // Initialize invoice number when showing form
+  useEffect(() => {
+    if (showForm && !editingId && !invoiceNumber) {
+      generateInvoiceNumber();
+    }
+  }, [showForm, editingId]);
 
   const total = calculateTotal();
 
@@ -725,7 +822,15 @@ const Invoices = () => {
 
       <div className="header-bar">
         <h2>Invoices</h2>
-        <button className="btn-primary" onClick={() => { setShowForm(true); if (!editingId) generateInvoiceNumber(); }}>
+        <button 
+          className="btn-primary" 
+          onClick={() => { 
+            setShowForm(true); 
+            if (!editingId) {
+              generateInvoiceNumber();
+            }
+          }}
+        >
           Create Invoice
         </button>
       </div>
@@ -746,7 +851,7 @@ const Invoices = () => {
                 style={{ width: 100, height: 100, objectFit: 'contain', border: '1px solid #ddd' }}
                 onError={(e) => { e.target.src = '/logo.png'; }}
               />
-              <p style={{ fontSize: '0.8rem', color: '#666' }}>E I O Logo Preview </p>
+              <p style={{ fontSize: '0.8rem', color: '#666' }}>E I O Logo Preview</p>
             </div>
 
             <form className="invoice-form" onSubmit={handleSubmit}>
@@ -756,7 +861,12 @@ const Invoices = () => {
                 <div className="invoice-details-grid">
                   <div>
                     <label>Invoice Number</label>
-                    <input type="text" value={invoiceNumber} readOnly className="readonly" />
+                    <input 
+                      type="text" 
+                      value={invoiceNumber} 
+                      readOnly 
+                      className="readonly" 
+                    />
                   </div>
                   <div>
                     <label>Invoice Date</label>
@@ -773,10 +883,11 @@ const Invoices = () => {
                       type="text"
                       value={formData.poNo}
                       onChange={e => setFormData({ ...formData, poNo: e.target.value })}
+                      placeholder="Optional"
                     />
                   </div>
                   <div>
-                    <label>Mode of Transport</label>
+                    <label>Mode of Delivery</label>
                     <select
                       value={formData.modeOfTransport}
                       onChange={e => setFormData({ ...formData, modeOfTransport: e.target.value })}
@@ -791,221 +902,258 @@ const Invoices = () => {
                 </div>
               </div>
 
-              {/* Bill To / Ship To */}
-              <div className="section bill-ship">
-                <div>
-                  <label>Bill To</label>
-                  <input
-                    type="text"
-                    placeholder="Customer Name and Address"
-                    required
-                    value={formData.billTo}
-                    onChange={e => setFormData({ ...formData, billTo: e.target.value })}
-                  />
-                  <label>GSTIN</label>
-                  <input
-                    type="text"
-                    placeholder="Bill To GSTIN"
-                    value={formData.billToGSTIN}
-                    onChange={e => setFormData({ ...formData, billToGSTIN: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label>Ship To</label>
-                  <input
-                    type="text"
-                    placeholder="Ship To Name and Address"
-                    value={formData.shipTo}
-                    onChange={e => setFormData({ ...formData, shipTo: e.target.value })}
-                  />
-                  <label>GSTIN</label>
-                  <input
-                    type="text"
-                    placeholder="Ship To GSTIN"
-                    value={formData.shipToGSTIN}
-                    onChange={e => setFormData({ ...formData, shipToGSTIN: e.target.value })}
-                  />
+              {/* Bill To */}
+              <div className="section">
+                <h5>Bill To</h5>
+                <div className="bill-ship">
+                  <div>
+                    <label>Customer Name and Address</label>
+                    <textarea
+                      placeholder="Enter customer name and address"
+                      required
+                      value={formData.billTo}
+                      onChange={e => setFormData({ ...formData, billTo: e.target.value })}
+                      rows="3"
+                    />
+                    <label>GSTIN</label>
+                    <input
+                      type="text"
+                      placeholder="Bill To GSTIN"
+                      value={formData.billToGSTIN}
+                      onChange={e => setFormData({ ...formData, billToGSTIN: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Items Table */}
-       
+              <div className="section items-section">
+                <h5>Items</h5>
+                <div className="items-table">
+                  {/* Desktop Header */}
+                  <div className="items-table-header">
+                    <div className="items-table-header-row">
+                      <div className="table-header-cell">Description</div>
+                      <div className="table-header-cell">HSN/SAC</div>
+                      <div className="table-header-cell">Qty</div>
+                      <div className="table-header-cell">Rate</div>
+                      <div className="table-header-cell">Disc %</div>
+                      <div className="table-header-cell">Amount</div>
+                      <div className="table-header-cell">Action</div>
+                    </div>
+                  </div>
+                  
+                  {/* Items Body */}
+                  <div className="items-table-body">
+                    {formData.items.map((item, i) => (
+                      <div key={i} className="table-row">
+                        {/* Description */}
+                        <div className="table-cell" data-label="Description">
+                          <input
+                            type="text"
+                            className="item-input"
+                            value={item.item}
+                            onChange={e => handleItemChange(i, 'item', e.target.value)}
+                            placeholder="Item description"
+                            required
+                          />
+                        </div>
+                        
+                        {/* HSN/SAC */}
+                        <div className="table-cell" data-label="HSN/SAC">
+                          <input 
+                            type="text" 
+                            className="item-input"
+                            value={item.itemCode} 
+                            onChange={e => handleItemChange(i, 'itemCode', e.target.value)} 
+                            placeholder="HSN Code" 
+                          />
+                        </div>
+                        
+                        {/* Quantity */}
+                        <div className="table-cell" data-label="Qty">
+                          <input 
+                            type="number" 
+                            className="item-input"
+                            value={item.qty} 
+                            onChange={e => handleItemChange(i, 'qty', e.target.value)} 
+                            min="1"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Rate */}
+                        <div className="table-cell" data-label="Rate">
+                          <input 
+                            type="number" 
+                            className="item-input"
+                            value={item.price} 
+                            onChange={e => handleItemChange(i, 'price', e.target.value)} 
+                            step="0.01"
+                            min="0"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Discount */}
+                        <div className="table-cell" data-label="Disc %">
+                          <input 
+                            type="number" 
+                            className="item-input"
+                            value={item.disc} 
+                            onChange={e => handleItemChange(i, 'disc', e.target.value)} 
+                            min="0" 
+                            max="100" 
+                            step="0.01"
+                          />
+                        </div>
+                        
+                        {/* Amount */}
+                        <div className="table-cell amount-cell" data-label="Amount">
+                          ₹{parseFloat(item.amount || 0).toFixed(2)}
+                        </div>
+                        
+                        {/* Delete Button */}
+                        <div className="table-cell">
+                          {formData.items.length > 1 && (
+                            <button 
+                              type="button" 
+                              className="btn-delete" 
+                              onClick={() => removeItem(i)}
+                              aria-label="Delete item"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <button type="button" className="btn-add-item" onClick={addItem}>
+                    <span>+</span> Add Item
+                  </button>
+                </div>
+              </div>
 
-{/* Items Table */}
-<div className="section items-section">
-  <h5>Items</h5>
-  <div className="items-table">
-    {/* Desktop Header */}
-    <div className="items-table-header">
-      <div className="items-table-header-row">
-        <div className="table-header-cell">Description</div>
-        <div className="table-header-cell">HSN/SAC</div>
-        <div className="table-header-cell">Qty</div>
-        <div className="table-header-cell">Rate</div>
-        <div className="table-header-cell">Disc %</div>
-        <div className="table-header-cell">Amount</div>
-        <div className="table-header-cell"></div>
-      </div>
-    </div>
-    
-    {/* Items Body */}
-    <div className="items-table-body">
-      {formData.items.map((item, i) => (
-        <div key={i} className="table-row">
-          {/* Description */}
-          <div className="table-cell" data-label="Description">
-            <input
-              type="text"
-              className="item-input"
-              value={item.item}
-              onChange={e => handleItemChange(i, 'item', e.target.value)}
-              placeholder="e.g. APC Home UPS 1000VA"
-            />
-          </div>
-          
-          {/* HSN/SAC */}
-          <div className="table-cell" data-label="HSN/SAC">
-            <input 
-              type="text" 
-              className="item-input"
-              value={item.itemCode} 
-              onChange={e => handleItemChange(i, 'itemCode', e.target.value)} 
-              placeholder="8504" 
-            />
-          </div>
-          
-          {/* Quantity */}
-          <div className="table-cell" data-label="Qty">
-            <input 
-              type="number" 
-              className="item-input"
-              value={item.qty} 
-              onChange={e => handleItemChange(i, 'qty', e.target.value)} 
-              min="1" 
-            />
-          </div>
-          
-          {/* Rate */}
-          <div className="table-cell" data-label="Rate">
-            <input 
-              type="number" 
-              className="item-input"
-              value={item.price} 
-              onChange={e => handleItemChange(i, 'price', e.target.value)} 
-              step="0.01" 
-            />
-          </div>
-          
-          {/* Discount */}
-          <div className="table-cell" data-label="Disc %">
-            <input 
-              type="number" 
-              className="item-input"
-              value={item.disc} 
-              onChange={e => handleItemChange(i, 'disc', e.target.value)} 
-              min="0" 
-              max="100" 
-            />
-          </div>
-          
-          {/* Amount */}
-          <div className="table-cell amount-cell" data-label="Amount">
-            ₹{parseFloat(item.amount || 0).toFixed(2)}
-          </div>
-          
-          {/* Delete Button */}
-          <div className="table-cell">
-            <button type="button" className="btn-delete" onClick={() => removeItem(i)}>
-              ×
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-    
-    <button type="button" className="btn-add-item" onClick={addItem}>
-      <span>+</span> Add Item
-    </button>
-  </div>
-</div>
-
-<div className="section tax-total-section">
-  <h5>Tax & Total</h5>
-  <div className="tax-grid">
-    <div className="form-group">
-      <label>Taxable Amount</label>
-      <input 
-        type="number" 
-        step="0.01" 
-        value={formData.taxable.toFixed(2)} 
-        readOnly 
-        className="readonly" 
-      />
-    </div>
-    
-    <div className="form-group">
-      <label>CGST %</label>
-      <input 
-        type="number" 
-        step="0.01" 
-        value={formData.cgstRate} 
-        onChange={e => handleCgstRateChange(e.target.value)}
-        min="0"
-        max="28"
-      />
-    </div>
-    
-    <div className="form-group">
-      <label>CGST Amount</label>
-      <input 
-        type="number" 
-        step="0.01" 
-        value={formData.cgst.toFixed(2)} 
-        readOnly 
-        className="readonly"
-      />
-    </div>
-    
-    <div className="form-group">
-      <label>SGST %</label>
-      <input 
-        type="number" 
-        step="0.01" 
-        value={formData.sgstRate} 
-        onChange={e => handleSgstRateChange(e.target.value)}
-        min="0"
-        max="28"
-      />
-    </div>
-    
-    <div className="form-group">
-      <label>SGST Amount</label>
-      <input 
-        type="number" 
-        step="0.01" 
-        value={formData.sgst.toFixed(2)} 
-        readOnly 
-        className="readonly"
-      />
-    </div>
-  </div>
-  
-  <div className="final-total">
-    <strong>Total: ₹{total.toFixed(2)}</strong>
-    <p className="in-words">In Words: {numberToWords(Math.round(total))}</p>
-  </div>
-</div>
+              <div className="section tax-total-section">
+                <h5>Tax & Total</h5>
+                <div className="tax-grid">
+                  <div className="form-group">
+                    <label>Taxable Amount</label>
+                    <input 
+                      type="text" 
+                      value={`₹${formData.taxable.toFixed(2)}`} 
+                      readOnly 
+                      className="readonly" 
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>CGST %</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={formData.cgstRate} 
+                      onChange={e => handleCgstRateChange(e.target.value)}
+                      min="0"
+                      max="28"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>CGST Amount</label>
+                    <input 
+                      type="text" 
+                      value={`₹${formData.cgst.toFixed(2)}`} 
+                      readOnly 
+                      className="readonly"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>SGST %</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={formData.sgstRate} 
+                      onChange={e => handleSgstRateChange(e.target.value)}
+                      min="0"
+                      max="28"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>SGST Amount</label>
+                    <input 
+                      type="text" 
+                      value={`₹${formData.sgst.toFixed(2)}`} 
+                      readOnly 
+                      className="readonly"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Round Off</label>
+                    <input 
+                      type="text" 
+                      value={`₹${parseFloat(formData.roundOff || 0).toFixed(2)}`} 
+                      readOnly 
+                      className="readonly"
+                    />
+                  </div>
+                  
+                  <div className="form-group grand-total">
+                    <label>Grand Total</label>
+                    <input 
+                      type="text" 
+                      value={`₹${total.toFixed(2)}`} 
+                      readOnly 
+                      className="readonly grand-total-input"
+                    />
+                  </div>
+                </div>
+                
+                <div className="final-total">
+                  <p className="in-words">Amount in Words: {numberToWords(total)}</p>
+                </div>
+              </div>
 
               {/* Payment Mode */}
               <div className="section payment-mode">
                 <label>Payment Mode:</label>
                 <div className="radio-group">
-                  <label><input type="radio" name="pay" value="COD" checked={formData.paymentMode === 'Cash'} 
-                    onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} /> Cash</label>
-                  <label><input type="radio" name="pay" value="Online" checked={formData.paymentMode === 'Online'} 
-                    onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} /> Online</label>
-                  <label><input type="radio" name="pay" value="Cheque/DD" checked={formData.paymentMode === 'Cheque/DD'} 
-                    onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} /> Cheque/DD</label>
+                  <label>
+                    <input 
+                      type="radio" 
+                      name="pay" 
+                      value="Cash" 
+                      checked={formData.paymentMode === 'Cash'} 
+                      onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} 
+                    /> 
+                    Cash
+                  </label>
+                  <label>
+                    <input 
+                      type="radio" 
+                      name="pay" 
+                      value="Online" 
+                      checked={formData.paymentMode === 'Online'} 
+                      onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} 
+                    /> 
+                    Online
+                  </label>
+                  <label>
+                    <input 
+                      type="radio" 
+                      name="pay" 
+                      value="Cheque/DD" 
+                      checked={formData.paymentMode === 'Cheque/DD'} 
+                      onChange={e => setFormData({ ...formData, paymentMode: e.target.value })} 
+                    /> 
+                    Cheque/DD
+                  </label>
                 </div>
               </div>
 
@@ -1018,15 +1166,33 @@ const Invoices = () => {
                     total={total}
                   />} 
                   fileName={`Invoice_${invoiceNumber || 'Draft'}.pdf`}
+                  className="pdf-link"
                 >
-                  {({ loading }) => (
-                    <button type="button" className="btn-pdf" disabled={loading}>
+                  {({ loading, blob, url, error }) => (
+                    <button 
+                      type="button" 
+                      className="btn-pdf" 
+                      disabled={loading || !formData.billTo || formData.items.length === 0}
+                    >
                       {loading ? 'Generating...' : 'Download PDF'}
                     </button>
                   )}
                 </PDFDownloadLink>
-                <button type="button" className="btn-excel" onClick={downloadExcel}>Excel</button>
-                <button type="submit" className="btn-save">{editingId ? 'Update' : 'Save'}</button>
+                <button 
+                  type="button" 
+                  className="btn-excel" 
+                  onClick={downloadExcel}
+                  disabled={formData.items.length === 0}
+                >
+                  Export Excel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-save"
+                  disabled={!formData.billTo || formData.items.length === 0}
+                >
+                  {editingId ? 'Update' : 'Save'}
+                </button>
                 <button type="button" className="btn-cancel" onClick={resetForm}>Cancel</button>
               </div>
             </form>
@@ -1036,37 +1202,63 @@ const Invoices = () => {
 
       {/* Invoices List */}
       <div className="invoices-list">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Invoice </th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Total</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.length === 0 ? (
-              <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No invoices yet. Create one!</td></tr>
-            ) : (
-              invoices.map(inv => (
+        {invoices.length === 0 ? (
+          <div className="empty-state">
+            <p>No invoices yet. Create your first invoice!</p>
+          </div>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Invoice No</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Total Amount</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map(inv => (
                 <tr key={inv._id}>
                   <td>{inv.invoiceNumber || 'N/A'}</td>
-                  <td>{new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString()}</td>
-                  <td>{inv.billTo}</td>
+                  <td>
+                    {inv.invoiceDate ? 
+                      new Date(inv.invoiceDate).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      }) : 
+                      new Date(inv.createdAt).toLocaleDateString('en-IN')}
+                  </td>
+                  <td className="customer-cell">
+                    <div>{inv.billTo?.split('\n')[0] || 'No customer'}</div>
+                    <small style={{ color: '#666', fontSize: '0.8rem' }}>
+                      {inv.billToGSTIN ? `GSTIN: ${inv.billToGSTIN}` : ''}
+                    </small>
+                  </td>
                   <td><strong>₹{(inv.totalAmount || 0).toFixed(2)}</strong></td>
                   <td className="actions">
-                    <button className="btn-sm btn-info" onClick={() => openEdit(inv)}>Edit</button>
-                    <button className="btn-sm btn-danger" onClick={() => deleteInvoice(inv._id)}>Delete</button>
+                    <button 
+                      className="btn-sm btn-info" 
+                      onClick={() => openEdit(inv)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="btn-sm btn-danger" 
+                      onClick={() => deleteInvoice(inv._id)}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
 };
+
 export default Invoices;
